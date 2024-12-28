@@ -83,7 +83,9 @@ class _CompleteProfileState extends State<CompleteProfile> {
     String fullname = fullnameController.text.trim();
     if (fullname == '' || imagefile == null) {
       print('Please fill all fields');
-      Navigator.push(
+      Navigator.popUntil(context, (route) => route.isFirst);
+
+      Navigator.pushReplacement(
           context,
           MaterialPageRoute(
               builder: (context) => MyHomePage(

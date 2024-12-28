@@ -1,3 +1,4 @@
+import 'package:chatapp/models/ui_helper.dart';
 import 'package:chatapp/models/user_model.dart';
 import 'package:chatapp/pages/home_page.dart';
 import 'package:chatapp/pages/signup_page.dart';
@@ -20,7 +21,8 @@ class _LoginPageState extends State<LoginPage> {
     var email = emailController.text.trim();
     var password = passwordController.text.trim();
     if (email == '' || password == '') {
-      print('Please fill all fields');
+      UIHelper.showAlertDialog(
+          context, 'Incomplete data', 'Please fill all the fields');
     } else {
       signIn(email, password);
     }
@@ -28,11 +30,14 @@ class _LoginPageState extends State<LoginPage> {
 
   Future<void> signIn(String email, String password) async {
     UserCredential? credential;
+    UIHelper.showLoadingDialog(context, 'Logging In...');
     try {
       credential = await FirebaseAuth.instance
           .signInWithEmailAndPassword(email: email, password: password);
     } on FirebaseAuthException catch (ex) {
-      print(ex.message.toString());
+      Navigator.pop(context);
+      UIHelper.showAlertDialog(
+          context, 'An error occured', ex.message.toString());
     }
     if (credential != null) {
       String uid = credential.user!.uid;
@@ -41,7 +46,8 @@ class _LoginPageState extends State<LoginPage> {
       UserModel userModel =
           UserModel.fromMap(userData.data() as Map<String, dynamic>);
       print('Login Successfully');
-      Navigator.push(
+      Navigator.popUntil(context, (route) => route.isFirst);
+      Navigator.pushReplacement(
           context,
           MaterialPageRoute(
               builder: (context) => MyHomePage(

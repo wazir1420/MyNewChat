@@ -1,4 +1,10 @@
+import 'dart:math';
+
+import 'package:chatapp/main.dart';
+import 'package:chatapp/models/chatroom_model.dart';
 import 'package:chatapp/models/user_model.dart';
+import 'package:chatapp/pages/chat_room_page.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -14,6 +20,37 @@ class SearchPage extends StatefulWidget {
 }
 
 class _SearchPageState extends State<SearchPage> {
+  TextEditingController searchController = TextEditingController();
+  Future<ChatRoomModel?> getChatRoomModel(UserModel targetUser) async {
+    ChatRoomModel? chatRoom;
+    QuerySnapshot snapshot = await FirebaseFirestore.instance
+        .collection('chatrooms')
+        .where('participants.${widget.userModel.uid}', isEqualTo: true)
+        .where('participants.${targetUser.uid}', isEqualTo: true)
+        .get();
+
+    if (snapshot.docs.isNotEmpty) {
+      var docData = snapshot.docs[0].data();
+      ChatRoomModel existingChatRoom =
+          ChatRoomModel.fromMap(docData as Map<String, dynamic>);
+      chatRoom = existingChatRoom;
+    } else {
+      ChatRoomModel newChatroom = ChatRoomModel(
+          chatroomid: uuid.v1(),
+          lastMessage: '',
+          participants: {
+            widget.userModel.uid.toString(): true,
+            targetUser.uid.toString(): true
+          });
+      await FirebaseFirestore.instance
+          .collection('chatrooms')
+          .doc(newChatroom.chatroomid)
+          .set(newChatroom.toMap());
+      chatRoom = newChatroom;
+    }
+    return chatRoom;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -30,13 +67,16 @@ class _SearchPageState extends State<SearchPage> {
         child: Column(
           children: [
             TextFormField(
+              controller: searchController,
               decoration: InputDecoration(labelText: 'Email Address'),
             ),
             SizedBox(
               height: 20,
             ),
             CupertinoButton(
-              onPressed: () {},
+              onPressed: () {
+                setState(() {});
+              },
               color: Theme.of(context).colorScheme.secondary,
               child: Text(
                 'Search',
@@ -46,6 +86,56 @@ class _SearchPageState extends State<SearchPage> {
             SizedBox(
               height: 20,
             ),
+            StreamBuilder(
+                stream: FirebaseFirestore.instance
+                    .collection('users')
+                    .where('email', isEqualTo: searchController.text)
+                    .where('email', isNotEqualTo: widget.userModel.email)
+                    .snapshots(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.active) {
+                    if (snapshot.hasData) {
+                      QuerySnapshot dataSnapshot =
+                          snapshot.data as QuerySnapshot;
+                      if (dataSnapshot.docs.isNotEmpty) {
+                        Map<String, dynamic> userMap =
+                            dataSnapshot.docs[0].data() as Map<String, dynamic>;
+                        UserModel searchUser = UserModel.fromMap(userMap);
+                        return ListTile(
+                          onTap: () async {
+                            ChatRoomModel? chatRoomModel =
+                                await getChatRoomModel(searchUser);
+                            if (chatRoomModel != null) {
+                              Navigator.pop(context);
+                              Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                      builder: (context) => ChatRoomPage(
+                                            targetUser: searchUser,
+                                            userModel: widget.userModel,
+                                            firebaseUser: widget.firebaseUser,
+                                            chatroom: chatRoomModel,
+                                          )));
+                            }
+                          },
+                          leading: CircleAvatar(
+                            child: Icon(Icons.person),
+                          ),
+                          title: Text(searchUser.email!),
+                          trailing: Icon(Icons.keyboard_arrow_right),
+                        );
+                      } else {
+                        return Text('No result found!');
+                      }
+                    } else if (snapshot.hasData) {
+                      return Text('An error occured!');
+                    } else {
+                      return Text('No result found!');
+                    }
+                  } else {
+                    return CircularProgressIndicator();
+                  }
+                })
           ],
         ),
       )),
